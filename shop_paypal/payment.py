@@ -1,24 +1,22 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals
 
-import paypalrestsdk
 import warnings
 from decimal import Decimal
 
+import paypalrestsdk
+from cms.models import Page
 from django.conf import settings
 from django.conf.urls import url
-from django.core.urlresolvers import resolve, reverse
 from django.core.exceptions import ImproperlyConfigured
 from django.http.response import HttpResponseRedirect, HttpResponseBadRequest
-from django.urls import NoReverseMatch
+from django.urls import NoReverseMatch, resolve, reverse
 from django.utils.translation import ugettext_lazy as _
-from cms.models import Page
-
+from django_fsm import transition
 from shop.models.cart import CartModel
 from shop.models.order import BaseOrder, OrderModel, OrderPayment
 from shop.money import MoneyMaker
 from shop.payment.providers import PaymentProvider
-from django_fsm import transition
 
 
 class PayPalPayment(PaymentProvider):
@@ -146,12 +144,13 @@ class OrderWorkflowMixin(object):
         assert self.currency == transaction['amount']['currency'].upper(), "Currency mismatch"
         Money = MoneyMaker(self.currency)
         amount = Money(Decimal(transaction['amount']['total']))
-        OrderPayment.objects.create(order=self, amount=amount, transaction_id=charge['id'], payment_method=PayPalPayment.namespace)
+        OrderPayment.objects.create(order=self, amount=amount, transaction_id=charge['id'],
+                                    payment_method=PayPalPayment.namespace)
 
     def is_fully_paid(self):
         return super(OrderWorkflowMixin, self).is_fully_paid()
 
     @transition(field='status', source='paid_with_paypal', conditions=[is_fully_paid],
-        custom=dict(admin=True, button_name=_("Acknowledge Payment")))
+                custom=dict(admin=True, button_name=_("Acknowledge Payment")))
     def acknowledge_paypal_payment(self):
         self.acknowledge_payment()
